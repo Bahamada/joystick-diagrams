@@ -12,6 +12,8 @@ from classes.visualizer import VisualizerWindow
 
 
 class MainWindow(QtWidgets.QMainWindow, UiMainWindow):
+    jg_modes: list[str]
+
     def __init__(self, *args, obj=None, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
         self.jg_devices = []

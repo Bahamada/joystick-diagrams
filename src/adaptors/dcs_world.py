@@ -35,6 +35,12 @@ class DCSWorldParser(jdi.JDInterface):
         self.valid_profiles: list[str] = self.__validate_profiles()
         self.__easy_mode: str = '_easy'
 
+    def get_device_names(self) -> list[str]:
+        raise Exception('DCS has no devices')
+
+    def get_modes(self) -> list[str]:
+        raise Exception('DCS has no modes')
+
     def __validate_base_directory(self) -> list[str]:
         """validate the base directory structure, make sure there are files."""
         if 'Config' not in os.listdir(self.path):

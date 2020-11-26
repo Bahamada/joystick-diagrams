@@ -1,13 +1,22 @@
 import functions.helper as helper
+from abc import ABC, abstractmethod
 
 
-class JDInterface:
+class JDInterface(ABC):
     no_bind_text: str
     joystick_dictionary: dict[str, dict[str, dict]]
 
     def __init__(self):
         self.no_bind_text = "NO BIND"
         self.joystick_dictionary = {}
+
+    @abstractmethod
+    def get_device_names(self) -> list[str]:
+        ...
+
+    @abstractmethod
+    def get_modes(self) -> list[str]:
+        ...
 
     def update_joystick_dictionary(self, device: str, mode: str, inherit: object, buttons: object) -> None:
         data = {

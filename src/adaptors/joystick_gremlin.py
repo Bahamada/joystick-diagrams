@@ -1,149 +1,109 @@
 '''Joystick Gremlin (Version ~13) XML Parser for use with Joystick Diagrams'''
 import typing
-from typing import Union
-from xml.dom import minidom
-from xml.dom.minidom import Document, NodeList, Element, Node
+from typing import Union, Tuple
+
+from lxml import etree
+from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 
 import functions.helper as helper
 import adaptors.joystick_diagram_interface as jdi
 
 
-#TODO: use lxml
 class JoystickGremlin(jdi.JDInterface):
     filepath: str
+    devices: list[Element]
     deviceNames: list[str]
-    profiles: list[str]
-    modes: NodeList
-    mode: Element
-    devices: NodeList
-    device: Node
-    currentDevice: typing.Optional[str]
-    currentMode: typing.Optional[str]
-    currentInherit: Union[bool, str, None]
-    buttons: NodeList
-    buttonArray: typing.Optional[dict]
-    usingInheritance: bool
-    file: Document
+    device: Element
+    tree: ElementTree
 
     def __init__(self, filepath):
         # TRY FIND PATH
         jdi.JDInterface.__init__(self)
-        self.file = self.parse_xml_file(filepath)
+        self.tree = self.parse_xml_file(filepath)
 
         # New Attributes
-        self.deviceNames = self.get_device_names()
-        self.profiles = []
-        self.modes = None
-        self.mode = None
-        self.devices = None
-        self.device = None
-        self.currentDevice = None
-        self.currentMode = None
-        self.currentInherit = None
-        self.inherit = None
-        self.buttons = None
-        self.buttonArray = None
-        self.inheritModes = {}
-        self.usingInheritance = False
+        self.devices = []
+        self.deviceNames = []
 
     def get_device_names(self) -> list[str]:
-        self.devices = self.get_devices()
-        device_items = []
+        if not self.deviceNames:
+            self.devices = self.get_devices()
+            self.deviceNames = []
+            for item in self.devices:
+                self.deviceNames.append(item.attrib['name'])
+        return self.deviceNames
 
-        for item in self.devices:
-            device_items.append(item.getAttribute('name'))
-        return device_items
-
-    def get_modes(self) -> NodeList:
+    def get_modes(self) -> list[str]:
         self.devices = self.get_devices()
         profile_modes = []
 
         item = self.devices[0]  # All Modes common across JG
-        modes = item.getElementsByTagName('mode')
+        modes = item.findall('mode')
         for mode in modes:
-            mode_name = mode.getAttribute('name')
+            mode_name = mode.attrib['name']
             profile_modes.append(mode_name)
         return profile_modes
 
     @staticmethod
-    def parse_xml_file(xml_file) -> Document:
-        # Improve loading of file, checks for validity etc
-        return minidom.parse(xml_file)
+    def parse_xml_file(xml_file) -> ElementTree:
+        return etree.parse(xml_file)
 
     def create_dictionary(self, profiles: list[str] = None) -> dict[str, dict[str, dict]]:
         if profiles is None:
             profiles = []
-        self.profiles = profiles
         self.devices = self.get_devices()
-        helper.log("Number of Devices: {}".format(str(self.devices.length)), 'debug')
+        helper.log(f"Number of Devices: {len(self.devices)}", 'debug')
 
-        for self.device in self.devices:
-            self.currentDevice = self.get_single_device()
-            self.modes = self.get_device_modes()
-            helper.log("All Modes: {}".format(self.modes))
-            for self.mode in self.modes:
-                self.currentInherit = self.has_inheritance()
-                self.buttonArray = {}
-                self.currentMode = self.get_single_mode()
-                helper.log("Selected Mode: {}".format(self.currentMode), 'debug')
-                self.buttons = self.get_mode_buttons()
-                self.buttonArray = self.extract_buttons()
-                self.update_joystick_dictionary(self.currentDevice,
-                                                self.currentMode,
-                                                self.currentInherit,
-                                                self.buttonArray
-                                                )
-        if self.usingInheritance:
+        using_inheritance = False
+        for device in self.devices:
+            current_device = device.attrib['name']
+            modes = device.findall('mode')
+            helper.log(f"All Modes: {list(map(lambda e: e.attrib['name'], modes))}")
+            for mode in modes:
+                current_inherit, using_inheritance = self.extract_inheritance(mode)
+                current_mode = mode.attrib['name']
+                helper.log(f"Selected Mode: {current_mode}", 'debug')
+                buttons = mode.findall('button')
+                button_array = self.extract_buttons(buttons)
+                self.update_joystick_dictionary(current_device, current_mode, current_inherit, button_array)
+        if using_inheritance:
             self.inherit_joystick_dictionary()
-            self.filter_dictionary()
+            self.filter_dictionary(profiles)
             return self.joystick_dictionary
         else:
-            self.filter_dictionary()
+            self.filter_dictionary(profiles)
             return self.joystick_dictionary
 
-    def filter_dictionary(self) -> dict[str, dict[str, dict]]:
-        if len(self.profiles) > 0:
+    # TODO: this dict needs better typing
+    def filter_dictionary(self, profiles: list[str]) -> dict[str, dict[str, dict]]:
+        if len(profiles) > 0:
             for key, value in self.joystick_dictionary.items():
                 for item in value.copy():
-                    if not item in self.profiles:
+                    if item not in profiles:
                         self.joystick_dictionary[key].pop(item, None)
         return self.joystick_dictionary
 
-    def get_devices(self) -> NodeList:
-        return self.file.getElementsByTagName('device')
+    def get_devices(self) -> list[Element]:
+        if not self.devices:
+            self.devices = self.tree.findall('.//device')
+        return self.devices
 
-    def get_mode_buttons(self) -> NodeList:
-        return self.mode.getElementsByTagName('button')
+    @staticmethod
+    def extract_inheritance(mode: Element) -> Tuple[Union[bool, str], bool]:
+        if 'inherit' not in mode.attrib or mode.attrib['inherit'] == '':
+            return False, False
+        return mode.attrib['inherit'], True
 
-    def get_device_modes(self) -> NodeList:
-        return self.device.getElementsByTagName('mode')
-
-    def get_single_device(self) -> str:
-        return self.device.getAttribute('name')
-
-    def get_single_mode(self) -> str:
-        return self.mode.getAttribute('name')
-
-    def has_inheritance(self) -> Union[bool, str]:
-        inherit = self.mode.getAttribute('inherit')
-        if inherit != '':
-            if not self.usingInheritance:
-                self.usingInheritance = True
-            return inherit
-        else:
-            return False
-
-    def extract_buttons(self) -> dict:
-        for i in self.buttons:
-            if i.getAttribute('description') != "":
-                self.buttonArray.update({
-                    "BUTTON_" + str(i.getAttribute('id')): str(i.getAttribute('description'))
-                })
-            else:
-                self.buttonArray.update({
-                    "BUTTON_" + str(i.getAttribute('id')): self.no_bind_text
-                })
-        return self.buttonArray
+    def extract_buttons(self, buttons: list[Element]) -> dict[str, str]:
+        button_array = {}
+        for button in buttons:
+            description = button.attrib.get('description', default=self.no_bind_text)
+            if description == '':
+                description = self.no_bind_text
+            button_id = button.attrib['id']
+            button_array[f"BUTTON_{button_id}"] = description
+        return button_array
 
     def get_device_count(self) -> int:
-        return self.file.getElementsByTagName('device').length
+        return len(self.get_devices())
