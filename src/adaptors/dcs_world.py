@@ -1,125 +1,143 @@
-'''DCS World Lua Config Parser for use with Joystick Diagrams'''
+"""DCS World Lua Config Parser for use with Joystick Diagrams"""
 import os
 import re
 from pathlib import Path
+from typing import Union
+
 import ply.lex as lex
 import ply.yacc as yacc
 import functions.helper as helper
 import adaptors.joystick_diagram_interface as jdi
-import adaptors.dcs_world_lex # Do not remove - PLY production requirement
-import adaptors.dcs_world_parse # Do not remove - PLY production requirement
+import adaptors.dcs_world_lex  # Do not remove - PLY production requirement
+import adaptors.dcs_world_parse  # Do not remove - PLY production requirement
 
-class DCSWorld_Parser(jdi.JDinterface):
 
-    def __init__(self, path, easy_modes=True):
-        jdi.JDinterface.__init__(self)
-        self.path = path
-        self.remove_easy_modes = easy_modes
-        self.__easy_mode = '_easy'
-        self.base_directory = self.__validateBaseDirectory()
-        self.valid_profiles = self.__validateProfiles()
-        self.joystick_listing = {}
+class DCSWorldParser(jdi.JDInterface):
+    path: str
+    remove_easy_modes: bool
+    joystick_listing: dict
+    profiles_to_process: list
+    file: str
+    profile_devices: list[str]
+    base_directory: list[str]
+    valid_profiles: list[str]
+    __easy_mode: str
 
-    def __validateBaseDirectory(self):
-        '''validate the base directory structure, make sure there are files.'''
-        if 'Config' in os.listdir(self.path):
-            try:
-                return os.listdir(os.path.join(self.path, 'Config', 'Input'))
-            except FileNotFoundError:
-                raise FileNotFoundError("DCS: No input directory found")
-        else:
+    def __init__(self, path: str, easy_modes: bool = True):
+        jdi.JDInterface.__init__(self)
+        self.path: str = path
+        self.remove_easy_modes: bool = easy_modes
+        self.joystick_listing: dict = {}
+        self.profiles_to_process: list = []
+        self.file: str = ''
+        self.profile_devices: list[str] = []
+        self.base_directory: list[str] = self.__validate_base_directory()
+        self.valid_profiles: list[str] = self.__validate_profiles()
+        self.__easy_mode: str = '_easy'
+
+    def __validate_base_directory(self) -> list[str]:
+        """validate the base directory structure, make sure there are files."""
+        if 'Config' not in os.listdir(self.path):
             raise FileNotFoundError("DCS: No Config Folder found in DCS Folder.")
- 
-    def __validateProfiles(self):
-        '''
+        try:
+            return os.listdir(os.path.join(self.path, 'Config', 'Input'))
+        except FileNotFoundError:
+            raise FileNotFoundError("DCS: No input directory found")
+
+    def __validate_profiles(self) -> list[str]:
+        """
         Validate Profiles Routine
-        '''
-        if len(self.base_directory)>0:
-            valid_items = []
-            for item in self.base_directory:
-                valid = self.__validateProfile(item)
-                if valid:
-                    valid_items.append(item)
-                else:
-                    helper.log("DCS: Profile {} has no joystick directory files".format(item))
-        else:
+        """
+        if len(self.base_directory) <= 0:
             raise FileExistsError("DCS: No profiles exist in Input directory!")
+        valid_items: list[str] = []
+        for item in self.base_directory:
+            valid = self.__validate_profile(item)
+            if not valid:
+                helper.log("DCS: Profile {} has no joystick directory files".format(item))
+                continue
+            valid_items.append(item)
 
         return valid_items
 
-    def __validateProfile(self, item):
-        '''
+    def __validate_profile(self, item: str) -> Union[list[str], bool]:
+        """
         Validate Inidividual Profile
         Return Valid Profile
-        '''
-        #TODO add additional checking for rogue dirs/no files etc
-        if 'joystick' in os.listdir(os.path.join(self.path, 'Config', 'Input', item)):
-            return os.listdir(os.path.join(self.path, 'Config', 'Input', item, 'joystick'))
-        else:
+        """
+        # TODO add additional checking for rogue dirs/no files etc
+        if 'joystick' not in os.listdir(os.path.join(self.path, 'Config', 'Input', item)):
             return False
+        return os.listdir(os.path.join(self.path, 'Config', 'Input', item, 'joystick'))
 
-    def getValidatedProfiles(self):
-        ''' Expose Valid Profiles only to UI '''
+    def get_validated_profiles(self) -> list[str]:
+        """ Expose Valid Profiles only to UI """
         if self.remove_easy_modes:
-                return list(filter(lambda x: False if self.__easy_mode in x else True, self.valid_profiles))
-        else:
-            return self.valid_profiles
+            return list(filter(lambda x: self.__easy_mode not in x, self.valid_profiles))
+        return self.valid_profiles
 
-    def convert_button_format(self, button):
-        ''' Convert DCS Buttons to match expected "BUTTON_X" format '''
-        new = button.split('_')[1]
-        rep = new.replace("BTN", "BUTTON_")
-        return rep
+    @staticmethod
+    def convert_button_format(button: str) -> str:
+        """ Convert DCS Buttons to match expected "BUTTON_X" format """
+        return button.split('_')[1].replace("BTN", "BUTTON_")
 
-    def processProfiles(self, profile_list=[]):
-        if len(profile_list)>0:
+    def process_profiles(self, profile_list: list[str] = None):
+        if profile_list is None:
+            profile_list = []
+        if len(profile_list) > 0:
             self.profiles_to_process = profile_list
         else:
-            self.profiles_to_process = self.getValidatedProfiles()
+            self.profiles_to_process = self.get_validated_profiles()
 
         assert len(self.profiles_to_process) != 0, "DCS: There are no valid profiles to process"
         for profile in self.profiles_to_process:
-            self.fq_path = os.path.join(self.path,'Config', 'Input', profile,'joystick')
-            self.profile_devices = os.listdir(os.path.join(self.fq_path))
+            fq_path = os.path.join(self.path, 'Config', 'Input', profile, 'joystick')
+            self.profile_devices = os.listdir(os.path.join(fq_path))
             self.joystick_listing = {}
             for item in self.profile_devices:
+                # TODO: magic number
                 self.joystick_listing.update({
-                    item[:-48] : item
+                    item[:-48]: item
                 })
             for joystick_device, joystick_file in self.joystick_listing.items():
-                
-                if os.path.isdir(os.path.join(self.fq_path, joystick_file)):
-                        print("Skipping as Folder")
-                else:
-                    try:
-                        self.file = Path(os.path.join(self.fq_path, joystick_file)).read_text(encoding="utf-8")
-                        self.file = self.file.replace('local diff = ', '') ## CLEAN UP
-                        self.file = self.file.replace('return diff', '') ## CLEAN UP
-                    except FileNotFoundError:
-                        raise FileExistsError("DCS: File {} no longer found - It has been moved/deleted from directory".format(joystick_file))
-                    else:
-                        data = self.parseFile()
-                        writeVal = False
-                        buttonArray = {}
-                        if 'keyDiffs' in data.keys():
-                            for value in data['keyDiffs'].values():
-                                for item, attribute in value.items():
-                                    if item=='name':
-                                        name = attribute
-                                    if item=='added':
-                                        button = self.convert_button_format(attribute[1]['key'])
-                                        writeVal = True
-                                if writeVal:
-                                    buttonArray.update({
-                                        button : name
-                                    })
-                                    writeVal = False
-                            self.update_joystick_dictionary(joystick_device,profile, False, buttonArray)
+
+                if os.path.isdir(os.path.join(fq_path, joystick_file)):
+                    print("Skipping as Folder")
+                    continue
+                try:
+                    self.file = Path(os.path.join(fq_path, joystick_file)).read_text(encoding="utf-8")
+                    self.file = self.file.replace('local diff = ', '')  # CLEAN UP
+                    self.file = self.file.replace('return diff', '')  # CLEAN UP
+                except FileNotFoundError:
+                    raise FileExistsError(
+                        "DCS: File {} no longer found - It has been moved/deleted from directory".format(
+                            joystick_file))
+                data = self.parseFile()
+                write_val = False
+                button_array = {}
+                if 'keyDiffs' in data.keys():
+                    for value in data['keyDiffs'].values():
+                        button = None
+                        name = None
+                        for item, attribute in value.items():
+                            if item == 'name':
+                                name = attribute
+                            if item == 'added':
+                                button = self.convert_button_format(attribute[1]['key'])
+                                write_val = True
+                        if write_val:
+                            button_array.update({
+                                button: name
+                            })
+                            write_val = False
+                    self.update_joystick_dictionary(joystick_device, profile, False, button_array)
         return self.joystick_dictionary
 
     def parseFile(self):
         # pylint: disable=unused-variable
-        tokens = ('LCURLY', 'RCURLY', 'STRING', 'NUMBER', 'LBRACE', 'RBRACE', 'COMMA', 'EQUALS', 'TRUE', 'FALSE', 'DOUBLE_VAL')
+        tokens = (
+            'LCURLY', 'RCURLY', 'STRING', 'NUMBER', 'LBRACE', 'RBRACE', 'COMMA', 'EQUALS', 'TRUE', 'FALSE',
+            'DOUBLE_VAL')
 
         t_LCURLY = r"\{"
         t_RCURLY = r"\}"
@@ -172,7 +190,7 @@ class DCSWorld_Parser(jdi.JDinterface):
             t[0] = t[1]
             if len(t) == 4:
                 t[0].update(t[3])
-                
+
         def p_key_expression(t):
             """key : LBRACE NUMBER RBRACE
                 | LBRACE STRING RBRACE"""
@@ -202,16 +220,17 @@ class DCSWorld_Parser(jdi.JDinterface):
             optimize=1,
             lextab='dcs_world_lex',
             reflags=re.UNICODE | re.VERBOSE
-            )
+        )
 
         # Build the parser
         parser = yacc.yacc(
             debug=False,
             optimize=1,
             tabmodule='dcs_world_parse'
-            )
+        )
 
         # Parse the data
+        data = None
         try:
             data = parser.parse(self.file)
         except Exception as error:

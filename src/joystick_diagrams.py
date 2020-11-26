@@ -61,7 +61,7 @@ class MainWindow(QtWidgets.QMainWindow, UiMainWindow):
         if self.dcs_parser_instance:
             self.dcs_parser_instance.remove_easy_modes = self.dcs_easy_mode_checkbox.isChecked()
             self.dcs_profiles_list.clear()
-            self.dcs_profiles_list.addItems(self.dcs_parser_instance.getValidatedProfiles())
+            self.dcs_profiles_list.addItems(self.dcs_parser_instance.get_validated_profiles())
 
     def clear_info(self):
         self.application_information_textbrowser.clear()
@@ -74,10 +74,12 @@ class MainWindow(QtWidgets.QMainWindow, UiMainWindow):
 
     def print_to_info(self, error):
         self.application_information_textbrowser.append(error)
-        self.application_information_textbrowser.verticalScrollBar().setValue(self.application_information_textbrowser.verticalScrollBar().maximum())
+        self.application_information_textbrowser.verticalScrollBar().setValue(
+            self.application_information_textbrowser.verticalScrollBar().maximum())
 
     def set_dcs_directory(self):
-        self.dcs_directory = QtWidgets.QFileDialog.getExistingDirectory(self,"Select DCS Saved Games Directory",os.path.expanduser("~"))
+        self.dcs_directory = QtWidgets.QFileDialog.getExistingDirectory(self, "Select DCS Saved Games Directory",
+                                                                        os.path.expanduser("~"))
 
         if self.dcs_directory:
             try:
@@ -90,22 +92,24 @@ class MainWindow(QtWidgets.QMainWindow, UiMainWindow):
     def load_dcs_directory(self):
         try:
             self.dcs_profiles_list.clear()
-            self.dcs_parser_instance = dcs.DCSWorld_Parser(self.dcs_directory,easy_modes=self.dcs_easy_mode_checkbox.isChecked())
-            self.print_to_info('Succesfully loaded DCS profiles')
+            self.dcs_parser_instance = dcs.DCSWorldParser(self.dcs_directory,
+                                                          remove_easy_modes=self.dcs_easy_mode_checkbox.isChecked())
+            self.print_to_info('Successfully loaded DCS profiles')
             self.enable_profile_load_button(self.dcs_directory_select_button)
             self.dcs_selected_directory_label.setText('in {}'.format(self.dcs_directory))
             self.export_button.setEnabled(1)
-        except Exception as error:
+        except Exception:
             self.disable_profile_load_button(self.dcs_directory_select_button)
             self.export_button.setEnabled(0)
             self.dcs_selected_directory_label.setText('')
             raise
         else:
             self.dcs_profiles_list.clear()
-            self.dcs_profiles_list.addItems(self.dcs_parser_instance.getValidatedProfiles())
+            self.dcs_profiles_list.addItems(self.dcs_parser_instance.get_validated_profiles())
 
     def set_jg_file(self):
-        self.jg_file = QtWidgets.QFileDialog.getOpenFileName(self,"Select Joystick Gremlin Config file",None,"Gremlin XMl Files (*.xml)")[0]
+        self.jg_file = QtWidgets.QFileDialog.getOpenFileName(self, "Select Joystick Gremlin Config file", None,
+                                                             "Gremlin XMl Files (*.xml)")[0]
 
         if self.jg_file:
             try:
@@ -131,45 +135,45 @@ class MainWindow(QtWidgets.QMainWindow, UiMainWindow):
             raise
 
     def export_profiles(self):
-        if self.parser_selector.currentIndex() == 0: ## JOYSTICK GREMLIN
+        if self.parser_selector.currentIndex() == 0:  # JOYSTICK GREMLIN
             selected_profiles = self.jg_profile_list.selectedItems()
-            if len(selected_profiles)>0:
+            if len(selected_profiles) > 0:
                 profiles = []
                 for item in selected_profiles:
                     profiles.append(item.text())
                 self.print_to_info("Exporting the following profile(s): {}".format(profiles))
-                data = self.jg_parser_instance.createDictionary(profiles)
+                data = self.jg_parser_instance.create_dictionary(profiles)
             else:
-                data = self.jg_parser_instance.createDictionary()
+                data = self.jg_parser_instance.create_dictionary()
             self.export_to_svg(data, 'JG')
-        elif self.parser_selector.currentIndex() == 1:  ## DCS
+        elif self.parser_selector.currentIndex() == 1:  # DCS
             selected_profiles = self.dcs_profiles_list.selectedItems()
-            if len(selected_profiles)>0:
+            if len(selected_profiles) > 0:
                 profiles = []
                 for item in selected_profiles:
                     profiles.append(item.text())
                 self.print_to_info("Exporting the following profile(s): {}".format(profiles))
-                data = self.dcs_parser_instance.processProfiles(profiles)
+                data = self.dcs_parser_instance.process_profiles(profiles)
             else:
-                data = self.dcs_parser_instance.processProfiles()
+                data = self.dcs_parser_instance.process_profiles()
             self.export_to_svg(data, 'DCS')
         else:
-            pass # no other tabs have functionality right now
+            pass  # no other tabs have functionality right now
 
-    def export_to_svg(self, data,parser_type):
+    def export_to_svg(self, data, parser_type: str):
 
         self.export_progress_bar.setValue(0)
         self.clear_info()
         self.print_to_info("Export Started")
-        exporter = export.Export(data,parser_type)
+        exporter = export.Export(data, parser_type)
         success = exporter.export_config(self.export_progress_bar)
         for item in success:
             self.print_to_info(item)
         self.print_to_info("Export Finished")
-        helper.log(success, 'info')
+        helper.log(str(success), 'info')
+
 
 if __name__ == '__main__':
-
     try:
         pygame.init()
 

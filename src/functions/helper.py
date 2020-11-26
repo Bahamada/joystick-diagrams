@@ -1,28 +1,30 @@
 import os
-from os import path
+import typing
 import webbrowser
-from shutil import copyfile
-import re
+from time import time
+
 import config
 import version
 import logging
-import html
 
 # Logging Init
 logDir = './logs/'
-logFile = 'jv.log'   
+logFile = 'jv.log'
 logger = logging.getLogger('jv')
-webbrowser.register('chrome', None,webbrowser.BackgroundBrowser(config.chrome_path))
+webbrowser.register('chrome', None, webbrowser.BackgroundBrowser(config.chrome_path))
 
-def createDirectory(directory):
+
+def create_directory(directory: str) -> bool:
     if not os.path.exists(directory):
-        return os.makedirs(directory)
+        os.makedirs(directory)
+        return True
     else:
         log("Failed to create directory: {}".format(directory), 'error')
         return False
-        
-def log(text, level='info'):
-    #Accepted Levels
+
+
+def log(text: str, level: str = 'info') -> None:
+    # Accepted Levels
     # info, warning, error
     if config.debug:
         if level == 'info':
@@ -33,17 +35,30 @@ def log(text, level='info'):
             logger.error(text)
         else:
             logger.debug(text)
-        
 
-def getVersion():
+
+def print_timing(func: typing.Callable) -> typing.Callable:
+    def wrapped(*args, **kwargs):
+        time_start = time()
+        result = func(*args, **kwargs)
+        time_end = time()
+        print(f"{func.__name__}  {(time_end - time_start) * 1000} ms")
+        return result
+
+    return wrapped
+
+
+def get_version() -> str:
     return "Version: " + version.VERSION
 
+
 if not os.path.exists(logDir):
-    createDirectory(logDir)
-hdlr = logging.FileHandler(logDir + logFile)
+    dir_created = create_directory(logDir)
+    assert dir_created
+handler = logging.FileHandler(logDir + logFile)
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 if config.debugLevel == 1:
     logger.setLevel(logging.WARNING)
 elif config.debugLevel == 2:

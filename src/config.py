@@ -1,16 +1,15 @@
-import configparser as ConfigParser
-from pathlib import Path
+from configparser import ConfigParser
 
-Config = ConfigParser.ConfigParser()
-Config.read('./config.cfg')
+config = ConfigParser()
+config.read('./config.cfg')
 
 # Write logs
-debug = Config.getboolean('DEFAULT', 'EnableLogging')
-debugLevel = Config.getint('DEFAULT', 'LogLevel')
+debug = config.getboolean('DEFAULT', 'EnableLogging', fallback=True)
+debugLevel = config.getint('DEFAULT', 'LogLevel', fallback=1)
 
 # Export out SVG files - for development only (leave as = 1)
 export = 1
 
 ## Program can automatically open in browser as it creates, specify below if you want this. Only supports Chrome right now.
-openinbrowser = Config.getboolean('BROWSER', 'OpenTemplatesInBrowser')
-chrome_path=Config.get('BROWSER', 'ChromePath')
+open_in_browser = config.getboolean('BROWSER', 'OpenTemplatesInBrowser', fallback=False)
+chrome_path = config.get('BROWSER', 'ChromePath', fallback='chrome.exe')
