@@ -45,8 +45,7 @@ class TestExport_Template(unittest.TestCase):
 
     def test_files_exported(self):
         self.exporter.export_config()
-        self.assertEqual(len(self.exporter.error_bucket), 1)
-        self.assertEqual(self.exporter.error_bucket[0], "No Template for: Other Device No Template")
+        self.assertEqual(len(self.exporter.error_bucket), 0)
         self.assertEqual(len(os.listdir(self.template.name)), 2)
 
     def test_files_exported_no_directory(self):

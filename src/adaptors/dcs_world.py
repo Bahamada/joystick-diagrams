@@ -23,10 +23,10 @@ class DCSWorldParser(jdi.JDInterface):
     valid_profiles: list[str]
     __easy_mode: str
 
-    def __init__(self, path: str, easy_modes: bool = True):
+    def __init__(self, path: str, remove_easy_modes: bool = True):
         jdi.JDInterface.__init__(self)
         self.path: str = path
-        self.remove_easy_modes: bool = easy_modes
+        self.remove_easy_modes: bool = remove_easy_modes
         self.joystick_listing: dict = {}
         self.profiles_to_process: list = []
         self.file: str = ''
